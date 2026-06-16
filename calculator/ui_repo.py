@@ -1,11 +1,11 @@
 """
-Single-file Django login demo.
+Single-file Django login demo — Humanized Edition.
 
-Run:
-    pip install django
-    python ui_repo.py runserver
+We've removed the overly technical abbreviations and added friendly,
+conversational comments to explain exactly what each part of the script does.
 
-Then open http://127.0.0.1:8000/
+Run this script from your terminal:
+    py ui_repo.py runserver
 """
 import sys
 from string import Template
@@ -13,71 +13,75 @@ from string import Template
 import django
 from django.conf import settings
 
+# -------------------------------------------------------------------------
+# 1. THE SETUP: Configuring Django on the fly
+# -------------------------------------------------------------------------
+# Normally, Django needs a dozen files and folders. By configuring settings
+# directly in the code below, we force Django to run from this single file.
+
 settings.configure(
-    DEBUG=True,
+    DEBUG=True,  # Shows helpful error pages if something breaks
     SECRET_KEY='django-insecure-single-file-demo-key',
-    ALLOWED_HOSTS=['*'],
-    ROOT_URLCONF=__name__,
+    ALLOWED_HOSTS=['*'],  # Allows the server to run locally
+    ROOT_URLCONF=__name__,  # Tells Django to look for URLs in this exact file
+    
+    # Middlewares are like security guards that check requests before they reach our code
     MIDDLEWARE=[
         'django.middleware.security.SecurityMiddleware',
-        'django.contrib.sessions.middleware.SessionMiddleware',
+        'django.contrib.sessions.middleware.SessionMiddleware', # Remembers who is logged in
         'django.middleware.common.CommonMiddleware',
-        'django.middleware.csrf.CsrfViewMiddleware',
+        'django.middleware.csrf.CsrfViewMiddleware',            # Blocks cross-site hacker attacks
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
     ],
     INSTALLED_APPS=[
         'django.contrib.contenttypes',
         'django.contrib.sessions',
     ],
-    # Cookie-backed sessions — no database/migrations required.
+    
+    # We use 'signed_cookies' so we don't have to set up a database.
+    # The user's logged-in status is securely saved right inside their browser cookie.
     SESSION_ENGINE='django.contrib.sessions.backends.signed_cookies',
-    SESSION_EXPIRE_AT_BROWSER_CLOSE=True,
+    SESSION_EXPIRE_AT_BROWSER_CLOSE=True, # Logs them out when they close the tab
     DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
 )
+
+# Tell Django to wake up and apply the settings above
 django.setup()
 
+# -------------------------------------------------------------------------
+# 2. IMPORTS: Bringing in the tools we need
+# -------------------------------------------------------------------------
 from django.urls import path                       # noqa: E402
 from django.shortcuts import redirect               # noqa: E402
 from django.http import HttpResponse                # noqa: E402
 from django.middleware.csrf import get_token        # noqa: E402
 from django.utils.html import escape                # noqa: E402
 
-# $ has special meaning in string.Template, CSS/HTML below has none,
-# so plain $placeholder substitution is used instead of str.format()
-# to avoid clashing with the literal { } braces in the CSS.
-PAGE = Template("""<!DOCTYPE html>
+# -------------------------------------------------------------------------
+# 3. THE VISUALS: Our HTML and CSS templates
+# -------------------------------------------------------------------------
+# We use Python's 'Template' tool to safely inject data (like usernames) 
+# into our HTML using the $ symbol.
+
+PAGE_WRAPPER = Template("""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>$title</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink-900:#0a0e1a;
-    --ink-700:#1c2438;
-    --violet-700:#3d2c6b;
-    --teal-600:#1f6f78;
-    --gold-500:#f2b84b;
-    --mist-100:#eef1f7;
-    --mist-400:#9aa3b8;
-    --danger:#ff6b6b;
+    --ink-900:#0a0e1a; --ink-700:#1c2438; --violet-700:#3d2c6b;
+    --teal-600:#1f6f78; --gold-500:#f2b84b; --mist-100:#eef1f7;
+    --mist-400:#9aa3b8; --danger:#ff6b6b;
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;}
   body{
-    margin:0;
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:var(--ink-900);
-    font-family:'Inter',sans-serif;
-    color:var(--mist-100);
-    position:relative;
-    overflow:hidden;
+    margin:0; min-height:100vh; display:flex; align-items:center;
+    justify-content:center; background:var(--ink-900);
+    font-family:'Inter',sans-serif; color:var(--mist-100);
+    position:relative; overflow:hidden;
   }
   .blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.55;pointer-events:none;}
   .blob-1{width:520px;height:520px;background:var(--violet-700);top:-160px;left:-140px;animation:drift1 16s ease-in-out infinite;}
@@ -90,113 +94,147 @@ PAGE = Template("""<!DOCTYPE html>
   .mark,.avatar{border-radius:12px;background:linear-gradient(135deg,var(--gold-500),#d98f2b);display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;color:var(--ink-900);}
   .mark{width:42px;height:42px;margin-bottom:22px;font-size:18px;}
   .avatar{width:64px;height:64px;border-radius:50%;font-size:24px;margin:0 auto 20px;}
-  h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;margin:0 0 6px;letter-spacing:-0.01em;word-break:break-word;}
+  h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;margin:0 0 6px;}
   .sub{color:var(--mist-400);font-size:14px;margin:0 0 28px;line-height:1.5;}
   label{display:block;font-size:13px;font-weight:500;color:var(--mist-400);margin-bottom:7px;}
   .field{margin-bottom:18px;}
-  input{width:100%;padding:13px 14px;background:var(--ink-700);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:var(--mist-100);font-family:'Inter',sans-serif;font-size:14.5px;outline:none;transition:border-color .15s, box-shadow .15s;}
-  input::placeholder{color:#5b6478;}
+  input{width:100%;padding:13px 14px;background:var(--ink-700);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:var(--mist-100);font-family:'Inter',sans-serif;font-size:14.5px;outline:none;}
   input:focus-visible{border-color:var(--gold-500);box-shadow:0 0 0 3px rgba(242,184,75,0.18);}
   .error{font-size:13px;color:var(--danger);margin:-6px 0 16px;}
-  button.submit,button.logout{width:100%;padding:13px;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-weight:600;font-size:14.5px;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .12s ease;}
+  button.submit,button.logout{width:100%;padding:13px;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-weight:600;font-size:14.5px;cursor:pointer;}
   button.submit{margin-top:6px;background:var(--gold-500);color:var(--ink-900);}
-  button.submit:hover{transform:translateY(-1px);box-shadow:0 10px 24px -10px rgba(242,184,75,0.5);}
   button.logout{background:transparent;color:var(--mist-100);border:1px solid rgba(255,255,255,0.12);}
-  button.logout:hover{background:rgba(255,255,255,0.06);transform:translateY(-1px);}
-  button.submit:active,button.logout:active{transform:translateY(0);}
-  button.submit:focus-visible,button.logout:focus-visible{outline:2px solid var(--mist-100);outline-offset:2px;}
   .foot{text-align:center;font-size:12.5px;color:var(--mist-400);margin-top:22px;}
-  @media (prefers-reduced-motion: reduce){.blob-1,.blob-2{animation:none;}.card{animation:none;}}
 </style>
 </head>
 <body>
   <div class="blob blob-1" aria-hidden="true"></div>
   <div class="blob blob-2" aria-hidden="true"></div>
-  $body
+  
+  $body_content
+  
 </body>
 </html>""")
 
-LOGIN_BODY = Template("""
+LOGIN_SCREEN = Template("""
 <main class="card">
   <div class="mark">A</div>
   <h1>Welcome back</h1>
   <p class="sub">Sign in to continue. Any username and password will work &mdash; this is a demo flow.</p>
+  
   <form method="post" novalidate>
-    <input type="hidden" name="csrfmiddlewaretoken" value="$csrf">
+    <input type="hidden" name="csrfmiddlewaretoken" value="$security_token">
+    
     <div class="field">
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" placeholder="Enter your name" autocomplete="username" value="$username" required>
+      <input type="text" id="username" name="username" placeholder="Enter your name" value="$saved_username" required>
     </div>
+    
     <div class="field">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+      <input type="password" id="password" name="password" placeholder="Enter your password" required>
     </div>
-    $error_html
+    
+    $error_message
+    
     <button type="submit" class="submit">Sign in</button>
   </form>
   <p class="foot">No account needed &mdash; this page logs you in regardless.</p>
 </main>
 """)
 
-DASHBOARD_BODY = Template("""
+DASHBOARD_SCREEN = Template("""
 <main class="card dashboard-card">
-  <div class="avatar">$initial</div>
+  <div class="avatar">$first_letter</div>
+  
   <h1>Welcome, $username</h1>
   <p class="sub">You're signed in. This page is reachable only after submitting the login form.</p>
+  
   <form method="post" action="/logout/">
-    <input type="hidden" name="csrfmiddlewaretoken" value="$csrf">
+    <input type="hidden" name="csrfmiddlewaretoken" value="$security_token">
     <button type="submit" class="logout">Log out</button>
   </form>
 </main>
 """)
 
+# -------------------------------------------------------------------------
+# 4. THE LOGIC: Handling what happens when a user visits a URL
+# -------------------------------------------------------------------------
 
-def login_view(request):
+def handle_login(request):
+    """Shows the login screen and handles form submissions."""
+    
+    # Did the user just click the 'Sign in' button?
     if request.method == 'POST':
-        username = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '').strip()
+        # Grab what they typed, stripping away accidental spaces at the ends
+        typed_username = request.POST.get('username', '').strip()
+        typed_password = request.POST.get('password', '').strip()
 
-        if not username or not password:
-            body = LOGIN_BODY.substitute(
-                csrf=get_token(request),
-                username=escape(username),
-                error_html='<p class="error">Please fill in both fields.</p>',
+        # If they left something blank, scold them gently
+        if not typed_username or not typed_password:
+            login_html = LOGIN_SCREEN.substitute(
+                security_token=get_token(request),
+                saved_username=escape(typed_username), # Put their name back so they don't have to retype it
+                error_message='<p class="error">Please fill in both fields.</p>',
             )
-            return HttpResponse(PAGE.substitute(title='Sign in', body=body))
+            final_page = PAGE_WRAPPER.substitute(title='Sign in', body_content=login_html)
+            return HttpResponse(final_page)
 
-        # No real authentication — any non-empty pair is accepted by design.
-        request.session['username'] = username
+        # Success! Log them in by saving their name into the browser's secure session cookie
+        request.session['username'] = typed_username
+        
+        # Send them straight to the dashboard
         return redirect('/dashboard/')
 
-    body = LOGIN_BODY.substitute(csrf=get_token(request), username='', error_html='')
-    return HttpResponse(PAGE.substitute(title='Sign in', body=body))
+    # If they just arrived at the page normally (a GET request), show a clean, empty form
+    clean_login_html = LOGIN_SCREEN.substitute(
+        security_token=get_token(request), 
+        saved_username='', 
+        error_message=''
+    )
+    final_page = PAGE_WRAPPER.substitute(title='Sign in', body_content=clean_login_html)
+    return HttpResponse(final_page)
 
 
-def dashboard_view(request):
-    username = request.session.get('username')
-    if not username:
+def handle_dashboard(request):
+    """Shows the welcome screen, but only if they are logged in."""
+    
+    # Check the browser session to see if we remember them
+    current_user = request.session.get('username')
+    
+    # If we don't know who they are, kick them back to the login screen
+    if not current_user:
         return redirect('/')
 
-    body = DASHBOARD_BODY.substitute(
-        csrf=get_token(request),
-        username=escape(username),
-        initial=escape(username[0].upper()),
+    # Build the dashboard HTML using their name
+    dashboard_html = DASHBOARD_SCREEN.substitute(
+        security_token=get_token(request),
+        username=escape(current_user),
+        first_letter=escape(current_user[0].upper()), # Grab the very first letter and capitalize it
     )
-    return HttpResponse(PAGE.substitute(title='Dashboard', body=body))
+    final_page = PAGE_WRAPPER.substitute(title='Dashboard', body_content=dashboard_html)
+    return HttpResponse(final_page)
 
 
-def logout_view(request):
+def handle_logout(request):
+    """Destroys the session data and logs the user out."""
     if request.method == 'POST':
-        request.session.flush()
+        request.session.flush() # Wipes the cookie clean
     return redirect('/')
 
-
+# -------------------------------------------------------------------------
+# 5. THE MAP: Connecting URLs to our logic functions
+# -------------------------------------------------------------------------
 urlpatterns = [
-    path('', login_view),
-    path('dashboard/', dashboard_view),
-    path('logout/', logout_view),
+    path('', handle_login),
+    path('dashboard/', handle_dashboard),
+    path('logout/', handle_logout),
 ]
 
+# -------------------------------------------------------------------------
+# 6. THE ENGINE: Starting the actual server
+# -------------------------------------------------------------------------
 if __name__ == '__main__':
     from django.core.management import execute_from_command_line
+    # When you type 'py ui_repo.py runserver', this line catches the word 'runserver' and starts Django.
     execute_from_command_line(sys.argv)
