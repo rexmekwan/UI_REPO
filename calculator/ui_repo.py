@@ -1,8 +1,5 @@
 """
-Single-file Django login demo — Humanized Edition.
-
-We've removed the overly technical abbreviations and added friendly,
-conversational comments to explain exactly what each part of the script does.
+Single-file Django login demo
 
 Run this script from your terminal:
     py ui_repo.py runserver
